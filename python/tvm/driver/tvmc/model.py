@@ -215,9 +215,32 @@ class TVMCModel(object):
         path_lib = temp.relpath(lib_name)
         vm_exec.mod.export_library(path_lib)
         self.lib_path = path_lib
+
+        # Save params
+        params_name = "model.params"
+        params_path = temp.relpath(params_name)
+        with open(params_path, "wb") as params_file:
+            params_file.write(relay.save_param_dict(self.params))
+
+        # Save input meta data
+        data_npz_name = "data.npz"
+        data_npz_path = temp.relpath(data_npz_name)
+        data_json = {}
+        data_json["Input"] = []
+        for p in self.mod["main"].params:
+            inp_dict = {
+                "name": p.name_hint,
+                "shape": p.checked_type.shape,
+                "dtype": p.checked_type.dtype,
+            }
+            data_json["Input"].append(inp_dict)
+        np.savez(data_npz_path, data_json)
+
         # Package up all the temp files into a tar file.
         with tarfile.open(package_path, "w") as tar:
             tar.add(path_lib, lib_name)
+            tar.add(data_npz_path, data_npz_name)
+            tar.add(params_path, params_name)
 
         return package_path
 
@@ -367,6 +390,7 @@ class TVMCPackage(object):
         project_dir: Optional[Union[Path, str]] = None,
     ):
         self._tmp_dir = utils.tempdir()
+        self.input_shapes = None
         self.package_path = package_path
         self.import_package(self.package_path)
 
@@ -451,6 +475,12 @@ class TVMCPackage(object):
                 graph = temp.relpath("mod.json")
                 params = temp.relpath("mod.params")
                 self.executor_type = "graph"
+            elif self.type == "vm":
+                params = temp.relpath("model.params")
+                data_path = temp.relpath("data.npz")
+                data = np.load(data_path, allow_pickle=True)
+                self.input_shapes = data["arr_0"].item()["Input"]
+                self.executor_type = "vm"
 
         if params is not None:
             with open(params, "rb") as param_file:
