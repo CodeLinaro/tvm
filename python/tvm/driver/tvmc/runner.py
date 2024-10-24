@@ -110,6 +110,12 @@ def add_run_parser(subparsers, main_parser, json_params):
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated. (non-micro devices only)",
     )
+    parser.add_argument(
+        "--profile-options",
+        default="table,sort,aggregate,col_sums",
+        help="Additional options for profiling. Table dump is default"
+        "comma seperated string of table,csv,json,sort,aggregate,col_sums",
+    )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
         "--end-to-end",
@@ -291,6 +297,7 @@ def drive_run(args):
         repeat=args.repeat,
         number=args.number,
         profile=args.profile,
+        profile_options=args.profile_options,
         end_to_end=args.end_to_end,
         options=options,
     )
@@ -481,6 +488,7 @@ def run_module(
     repeat: int = 10,
     number: int = 10,
     profile: bool = False,
+    profile_options: str = "table,sort,aggregate,col_sums",
     end_to_end: bool = False,
     options: dict = None,
 ):
@@ -521,6 +529,8 @@ def run_module(
         Requires `benchmark` to be set to True.
     profile : bool
         Whether to profile the run with the debug executor.
+    profile_options : string
+        Additional options for profiling
     end_to_end : bool
         Whether to measure the time of memory copies as well as model
         execution. Turning this on can provide a more realistic estimate
@@ -693,7 +703,15 @@ def run_module(
                 logger.info("Running the module with profiling enabled.")
                 report = module.profile()
                 # This print is intentional
-                print(report)
+                if profile_options.find("table") != -1:
+                    is_sort = profile_options.find("sort") != -1
+                    is_aggr = profile_options.find("aggregate") != -1
+                    is_sum = profile_options.find("col_sums") != -1
+                    print(report.table(sort=is_sort, aggregate=is_aggr, col_sums=is_sum))
+                if profile_options.find("csv") != -1:
+                    print(report.csv())
+                if profile_options.find("json") != -1:
+                    print(report.json())
 
             if not benchmark or device == "micro":
                 # TODO(gromero): Fix time_evaluator() for micro targets. Once it's
