@@ -63,7 +63,7 @@ def split_host_device_mods(mod):
     )(mod)
     device_mod_dict = {}
     for gv, func in device_mod.functions.items():
-        device_mod_dict.setdefault(func.attrs.get("target", None), dict()).update({gv: func})
+        device_mod_dict.setdefault(str(func.attrs.get("target", None)), dict()).update({gv: func})
     for target, funcs in device_mod_dict.items():
         device_mod_dict[target] = tvm.IRModule(funcs, attrs=device_mod.attrs)
     return host_mod, device_mod_dict
@@ -93,7 +93,7 @@ def tir_to_runtime(
     device_modules = []
     for target, device_mod in device_mod_dict.items():
         if len(device_mod.functions) != 0:
-            device_modules.append(codegen_build(device_mod, target))
+            device_modules.append(codegen_build(device_mod, tvm.target.Target(target)))
 
     mhost = codegen_build(mhost_all, target_host)
     for dev_mod in device_modules:
